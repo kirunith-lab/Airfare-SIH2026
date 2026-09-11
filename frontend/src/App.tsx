@@ -30,6 +30,15 @@ import { Chart, DataPoint } from "./components/Chart";
 import { BarChart, BarItem } from "./components/BarChart";
 import { Globe3D } from "./components/Globe3D";
 import { ExplainBreakdownModal } from "./components/ExplainBreakdownModal";
+import { LoadingScreen } from "./components/LoadingScreen";
+import {
+  MetricsGridSkeleton,
+  ChartSkeleton,
+  TableSkeleton,
+} from "./components/SkeletonLoader";
+import { OfflineBanner } from "./components/OfflineBanner";
+import { OfflinePage } from "./components/OfflinePage";
+import { InlineApiError } from "./components/ErrorPage";
 
 import { API_BASE, DOCS_URL } from "./config";
 
@@ -170,11 +179,110 @@ interface QualityData {
   }>;
 }
 
+const FALLBACK_SUMMARY: SummaryData = {
+  current_index: 127.43,
+  mom_change_pct: 3.8,
+  routes_tracked: 10,
+  data_points_total: 15208,
+  data_quality_pct: 99.4,
+  staleness_pct: 1.2,
+  laspeyres_value: 127.43,
+  jevons_value: 124.18,
+  base_period: "Jan 2025 = 100",
+  ai_analyst_summary:
+    "Offline Simulation Active: Domestic airfare index calculated across 10 DGCA calibrated trunk corridors. Seasonal festival surges balanced against off-peak baseline quotes.",
+  top_movements: [
+    { route_code: "DEL-BOM", corridor_name: "Delhi - Mumbai", current_price: 6150, base_price: 4850, mom_change_pct: 4.2, weight_pct: 16.0, trend: "up" },
+    { route_code: "BOM-DEL", corridor_name: "Mumbai - Delhi", current_price: 6210, base_price: 4890, mom_change_pct: 3.9, weight_pct: 16.0, trend: "up" },
+    { route_code: "DEL-BLR", corridor_name: "Delhi - Bengaluru", current_price: 6880, base_price: 5420, mom_change_pct: 5.1, weight_pct: 13.0, trend: "up" },
+    { route_code: "BLR-DEL", corridor_name: "Bengaluru - Delhi", current_price: 6790, base_price: 5380, mom_change_pct: 4.7, weight_pct: 13.0, trend: "up" },
+    { route_code: "BOM-BLR", corridor_name: "Mumbai - Bengaluru", current_price: 5020, base_price: 3950, mom_change_pct: 2.8, weight_pct: 11.0, trend: "up" },
+  ],
+};
+
+const FALLBACK_NATIONAL_INDEX: NationalIndexData = {
+  frequency: "monthly",
+  base_period: "Jan 2025 = 100",
+  current_laspeyres: 127.43,
+  current_jevons: 124.18,
+  current_weighted_fare: 6185,
+  mom_change_pct: 3.8,
+  yoy_change_pct: 27.4,
+  coverage_pct: 100.0,
+  routes_counted: 10,
+  total_routes: 10,
+  series: [
+    { date: "2025-01", laspeyres: 100.0, jevons: 100.0, weighted_price: 4850, coverage_pct: 100, event_annotation: "Base Period (Jan 2025 = 100)" },
+    { date: "2025-02", laspeyres: 103.0, jevons: 102.5, weighted_price: 4995, coverage_pct: 100, event_annotation: "Post-Republic Day corporate volume" },
+    { date: "2025-03", laspeyres: 109.0, jevons: 107.8, weighted_price: 5286, coverage_pct: 100, event_annotation: "Holi Festival Surge (+9%)" },
+    { date: "2025-05", laspeyres: 114.0, jevons: 112.1, weighted_price: 5529, coverage_pct: 100, event_annotation: "Summer Vacation Peak" },
+    { date: "2025-07", laspeyres: 97.0, jevons: 96.2, weighted_price: 4704, coverage_pct: 100, event_annotation: "Monsoon Leisure Dip (-3%)" },
+    { date: "2025-10", laspeyres: 126.0, jevons: 123.4, weighted_price: 6111, coverage_pct: 100, event_annotation: "Dussehra & Diwali Spikes (+26%)" },
+    { date: "2025-12", laspeyres: 128.0, jevons: 125.1, weighted_price: 6208, coverage_pct: 100, event_annotation: "Year-End Holiday Peak" },
+    { date: "2026-03", laspeyres: 130.0, jevons: 126.8, weighted_price: 6305, coverage_pct: 100, event_annotation: "Fuel Surcharge Hike (+10%) & Holi" },
+    { date: "2026-06", laspeyres: 122.0, jevons: 119.5, weighted_price: 5917, coverage_pct: 100, event_annotation: "Monsoon onset" },
+    { date: "2026-09", laspeyres: 127.43, jevons: 124.18, weighted_price: 6185, coverage_pct: 100, event_annotation: "Current Index Period (127.43)" },
+  ],
+};
+
+const FALLBACK_BACKTEST: BacktestData = {
+  metrics: {
+    mae: 2.31,
+    rmse: 3.18,
+    correlation: 0.91,
+    mean_bias: 0.74,
+    max_divergence: 4.82,
+    total_months_evaluated: 21,
+    validation_status: "PASSED_BENCHMARK",
+  },
+  methodology_note:
+    "Backtested against official DGCA statistical averages with high statistical fidelity (r = 0.91).",
+  series: [
+    { year_month: "2025-01", our_index: 100.0, dgca_reference: 100.0, error: 0.0, event_annotation: "Base Period" },
+    { year_month: "2025-03", our_index: 109.0, dgca_reference: 107.5, error: 1.5, event_annotation: "Holi Surge" },
+    { year_month: "2025-05", our_index: 114.0, dgca_reference: 113.2, error: 0.8, event_annotation: "Summer Peak" },
+    { year_month: "2025-10", our_index: 126.0, dgca_reference: 124.8, error: 1.2, event_annotation: "Diwali" },
+    { year_month: "2026-03", our_index: 130.0, dgca_reference: 128.4, error: 1.6, event_annotation: "Fuel Surcharge" },
+    { year_month: "2026-09", our_index: 127.43, dgca_reference: 126.8, error: 0.63, event_annotation: "Current" },
+  ],
+};
+
+const FALLBACK_QUALITY: QualityData = {
+  records_collected: 15208,
+  records_valid: 14752,
+  records_rejected: 456,
+  completeness_pct: 99.4,
+  duplicate_rate_pct: 1.8,
+  outlier_rate_pct: 1.2,
+  staleness_pct: 0.8,
+  last_ingestion: "2026-09-11 20:30:00 IST",
+  sources: [
+    { source: "Airline_Direct", records_collected: 6200, records_valid: 6050, validity_pct: 97.6, status: "HEALTHY" },
+    { source: "OTA_Aggregator", records_collected: 5800, records_valid: 5630, validity_pct: 97.1, status: "HEALTHY" },
+    { source: "Public_Schedule", records_collected: 3208, records_valid: 3072, validity_pct: 95.8, status: "HEALTHY" },
+  ],
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [nationalIndex, setNationalIndex] = useState<NationalIndexData | null>(null);
+
+  // Initial Boot Radar Screen State
+  const [initialBootLoading, setInitialBootLoading] = useState(true);
+
+  // Network & Offline Connectivity States
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(10);
+  const [justReconnected, setJustReconnected] = useState(false);
+  const [isOfflineModeActive, setIsOfflineModeActive] = useState(false);
+  const [showOfflineDiagnostics, setShowOfflineDiagnostics] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Search state
   const getInitialDate = () => {
@@ -207,21 +315,115 @@ export default function App() {
   // Formula Breakdown Modal state
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
 
+  // Load offline fallback dataset
+  const loadOfflineFallbackData = () => {
+    setSummary(FALLBACK_SUMMARY);
+    setNationalIndex(FALLBACK_NATIONAL_INDEX);
+    setBacktestData(FALLBACK_BACKTEST);
+    setQualityData(FALLBACK_QUALITY);
+  };
+
+  // Toggle Offline Simulation Mode
+  const toggleOfflineMode = () => {
+    if (isOfflineModeActive) {
+      setIsOfflineModeActive(false);
+      loadInitialData();
+    } else {
+      setIsOfflineModeActive(true);
+      loadOfflineFallbackData();
+    }
+  };
+
+  // Smooth Initial Boot Experience (avoids jarring 50ms flicker)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialBootLoading(false);
+    }, 1300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Online / Offline Window Listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setJustReconnected(true);
+      setApiError(null);
+      setTimeout(() => setJustReconnected(false), 3500);
+      loadInitialData();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Auto-retry countdown when offline
+  useEffect(() => {
+    if ((!isOnline || apiError) && !isOfflineModeActive) {
+      const timer = setInterval(() => {
+        setRetryCountdown((prev) => {
+          if (prev <= 1) {
+            handleManualRetry();
+            return 10;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    } else {
+      setRetryCountdown(10);
+    }
+  }, [isOnline, apiError, isOfflineModeActive]);
+
+  // Ping & Reconnect Handlers
+  const handleManualRetry = async (): Promise<boolean> => {
+    setIsReconnecting(true);
+    try {
+      const healthUrl = `${API_BASE.replace("/v1", "")}/health`;
+      const res = await fetch(healthUrl, { signal: AbortSignal.timeout(3500) });
+      if (res.ok) {
+        setIsOnline(true);
+        setApiError(null);
+        setJustReconnected(true);
+        setTimeout(() => setJustReconnected(false), 3500);
+        await loadInitialData();
+        setIsReconnecting(false);
+        return true;
+      }
+    } catch {
+      // Telemetry still unreachable
+    }
+    setIsReconnecting(false);
+    return false;
+  };
+
   const loadInitialData = async () => {
     setLoading(true);
     try {
       const [sumRes, natRes, bckRes, qltRes] = await Promise.all([
-        fetch(`${API_BASE}/analytics/summary`),
-        fetch(`${API_BASE}/index/national?frequency=monthly`),
-        fetch(`${API_BASE}/backtest`),
-        fetch(`${API_BASE}/quality`),
+        fetch(`${API_BASE}/analytics/summary`, { signal: AbortSignal.timeout(4500) }),
+        fetch(`${API_BASE}/index/national?frequency=monthly`, { signal: AbortSignal.timeout(4500) }),
+        fetch(`${API_BASE}/backtest`, { signal: AbortSignal.timeout(4500) }),
+        fetch(`${API_BASE}/quality`, { signal: AbortSignal.timeout(4500) }),
       ]);
       setSummary(await sumRes.json());
       setNationalIndex(await natRes.json());
       setBacktestData(await bckRes.json());
       setQualityData(await qltRes.json());
+      setApiError(null);
     } catch (err) {
-      console.error("Failed loading data", err);
+      console.warn("Live telemetry link unavailable, mounting offline baseline:", err);
+      setApiError("Civil aviation telemetry endpoint unreachable. Running in offline baseline mode.");
+      if (!summary) {
+        loadOfflineFallbackData();
+      }
     } finally {
       setLoading(false);
     }
@@ -327,6 +529,34 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Aviation Command Center Initial Boot Screen */}
+      {initialBootLoading && <LoadingScreen />}
+
+      {/* Sticky Top Offline / Reconnecting Banner */}
+      <OfflineBanner
+        isOffline={!isOnline || !!apiError}
+        isReconnecting={isReconnecting}
+        retryCountdown={retryCountdown}
+        onRetry={handleManualRetry}
+        isOfflineModeActive={isOfflineModeActive}
+        onToggleOfflineMode={toggleOfflineMode}
+        onOpenDiagnostics={() => setShowOfflineDiagnostics(true)}
+        justReconnected={justReconnected}
+      />
+
+      {/* Full-Page Diagnostics Modal (if triggered by user or button) */}
+      {showOfflineDiagnostics && (
+        <OfflinePage
+          isModal
+          onRetry={handleManualRetry}
+          onLaunchOfflineMode={() => {
+            setIsOfflineModeActive(true);
+            loadOfflineFallbackData();
+          }}
+          onClose={() => setShowOfflineDiagnostics(false)}
+        />
+      )}
+
       {/* Top Navbar */}
       <header className="navbar">
         <div className="brand-group">
@@ -343,10 +573,48 @@ export default function App() {
         </div>
 
         <div className="nav-actions">
-          <div className="status-pill">
-            <span className="status-dot" />
-            <span>ETL Engine Active</span>
+          <div
+            className="status-pill"
+            onClick={() => setShowOfflineDiagnostics(true)}
+            style={{ cursor: "pointer" }}
+            title="Click to inspect Civil Aviation Telemetry & Network diagnostics"
+          >
+            <span
+              className="status-dot"
+              style={{
+                backgroundColor: isOfflineModeActive
+                  ? "#38bdf8"
+                  : isOnline && !apiError
+                  ? "#10b981"
+                  : "#fbbf24",
+                boxShadow: isOfflineModeActive
+                  ? "0 0 8px #38bdf8"
+                  : isOnline && !apiError
+                  ? "0 0 8px #10b981"
+                  : "0 0 8px #fbbf24",
+              }}
+            />
+            <span>
+              {isOfflineModeActive
+                ? "Offline Demo"
+                : isOnline && !apiError
+                ? "ETL Active"
+                : "Telemetry Disconnected"}
+            </span>
           </div>
+
+          <button
+            className="btn-secondary"
+            onClick={toggleOfflineMode}
+            title={
+              isOfflineModeActive
+                ? "Switch back to live API telemetry connection"
+                : "Switch to offline simulation mode using preloaded DGCA quotes"
+            }
+          >
+            <Database size={14} />
+            {isOfflineModeActive ? "Live API" : "Offline Demo"}
+          </button>
 
           <button className="btn-secondary" onClick={loadInitialData} title="Refresh Live Index Data">
             <RefreshCw size={14} className={loading ? "spin" : ""} />
@@ -436,78 +704,82 @@ export default function App() {
             </div>
 
             {/* Metric Cards Grid */}
-            <div className="metrics-grid">
-              <div
-                className="metric-card hero-metric"
-                title="Base Period: Jan 2025 = 100.00. A value of 127.43 means airfares are 27.43% higher than Jan 2025."
-              >
-                <div className="metric-label-row">
-                  <span className="metric-label">Airfare Price Index</span>
-                  <Info size={14} className="metric-tooltip-icon" />
-                </div>
-                <div className="metric-value">{summary?.current_index ?? "127.43"}</div>
-                <div className="metric-badge up">
-                  <TrendingUp size={13} /> +{summary?.mom_change_pct ?? "3.8"}% MoM
-                </div>
-                <div className="metric-subtext">Base period: {summary?.base_period ?? "Jan 2025 = 100"}</div>
-                <button
-                  className="btn-control"
-                  style={{
-                    marginTop: "0.6rem",
-                    width: "100%",
-                    justifyContent: "center",
-                    fontSize: "0.75rem",
-                    padding: "5px 10px",
-                    background: "rgba(56, 189, 248, 0.1)",
-                    borderColor: "rgba(56, 189, 248, 0.3)",
-                    color: "#38bdf8"
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowBreakdownModal(true);
-                  }}
-                  title="View live mathematical breakdown of the Laspeyres equation"
+            {loading && !summary ? (
+              <MetricsGridSkeleton count={4} />
+            ) : (
+              <div className="metrics-grid">
+                <div
+                  className="metric-card hero-metric"
+                  title="Base Period: Jan 2025 = 100.00. A value of 127.43 means airfares are 27.43% higher than Jan 2025."
                 >
-                  <Calculator size={13} /> Decompose Formula
-                </button>
-              </div>
+                  <div className="metric-label-row">
+                    <span className="metric-label">Airfare Price Index</span>
+                    <Info size={14} className="metric-tooltip-icon" />
+                  </div>
+                  <div className="metric-value">{summary?.current_index ?? "127.43"}</div>
+                  <div className="metric-badge up">
+                    <TrendingUp size={13} /> +{summary?.mom_change_pct ?? "3.8"}% MoM
+                  </div>
+                  <div className="metric-subtext">Base period: {summary?.base_period ?? "Jan 2025 = 100"}</div>
+                  <button
+                    className="btn-control"
+                    style={{
+                      marginTop: "0.6rem",
+                      width: "100%",
+                      justifyContent: "center",
+                      fontSize: "0.75rem",
+                      padding: "5px 10px",
+                      background: "rgba(56, 189, 248, 0.1)",
+                      borderColor: "rgba(56, 189, 248, 0.3)",
+                      color: "#38bdf8",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowBreakdownModal(true);
+                    }}
+                    title="View live mathematical breakdown of the Laspeyres equation"
+                  >
+                    <Calculator size={13} /> Decompose Formula
+                  </button>
+                </div>
 
-              <div className="metric-card">
-                <div className="metric-label-row">
-                  <span className="metric-label">Routes Tracked</span>
-                  <Sliders size={14} className="metric-tooltip-icon" />
+                <div className="metric-card">
+                  <div className="metric-label-row">
+                    <span className="metric-label">Routes Tracked</span>
+                    <Sliders size={14} className="metric-tooltip-icon" />
+                  </div>
+                  <div className="metric-value">{summary?.routes_tracked ?? "10"}</div>
+                  <div className="metric-badge neutral">Coverage: 100%</div>
+                  <div className="metric-subtext">Major domestic corridors</div>
                 </div>
-                <div className="metric-value">{summary?.routes_tracked ?? "10"}</div>
-                <div className="metric-badge neutral">Coverage: 100%</div>
-                <div className="metric-subtext">Major domestic corridors</div>
-              </div>
 
-              <div className="metric-card">
-                <div className="metric-label-row">
-                  <span className="metric-label">Fare Observations</span>
-                  <Database size={14} className="metric-tooltip-icon" />
+                <div className="metric-card">
+                  <div className="metric-label-row">
+                    <span className="metric-label">Fare Observations</span>
+                    <Database size={14} className="metric-tooltip-icon" />
+                  </div>
+                  <div className="metric-value">
+                    {summary?.data_points_total ? summary.data_points_total.toLocaleString() : "15,120"}
+                  </div>
+                  <div className="metric-badge neutral">
+                    <CheckCircle2 size={13} /> Calibrated Seed + Live
+                  </div>
+                  <div className="metric-subtext">Cleaned & deduplicated quotes</div>
                 </div>
-                <div className="metric-value">
-                  {summary?.data_points_total ? summary.data_points_total.toLocaleString() : "15,120"}
-                </div>
-                <div className="metric-badge neutral">
-                  <CheckCircle2 size={13} /> Calibrated Seed + Live
-                </div>
-                <div className="metric-subtext">Cleaned & deduplicated quotes</div>
-              </div>
 
-              <div className="metric-card">
-                <div className="metric-label-row">
-                  <span className="metric-label">Data Quality Score</span>
-                  <CheckCircle2 size={14} className="metric-tooltip-icon" />
+                <div className="metric-card">
+                  <div className="metric-label-row">
+                    <span className="metric-label">Data Quality Score</span>
+                    <CheckCircle2 size={14} className="metric-tooltip-icon" />
+                  </div>
+                  <div className="metric-value">{summary?.data_quality_pct ?? "94.7"}%</div>
+                  <div className="metric-badge down">
+                    <CheckCircle2 size={13} /> Staleness: {summary?.staleness_pct ?? "1.8"}%
+                  </div>
+                  <div className="metric-subtext">IQR Outlier rejection active</div>
                 </div>
-                <div className="metric-value">{summary?.data_quality_pct ?? "94.7"}%</div>
-                <div className="metric-badge down">
-                  <CheckCircle2 size={13} /> Staleness: {summary?.staleness_pct ?? "1.8"}%
-                </div>
-                <div className="metric-subtext">IQR Outlier rejection active</div>
               </div>
-            </div>
+            )}
 
             {/* AI Analyst Natural Language Summary Box */}
             <div className="analyst-box">
@@ -535,14 +807,18 @@ export default function App() {
                 <span className="brand-badge">Base: Jan 2025 = 100.00</span>
               </div>
 
-              <Chart
-                data={indexChartData}
-                label1="Laspeyres Index"
-                label2="Jevons Index"
-                color1="#38bdf8"
-                color2="#a855f7"
-                showAnnotations={true}
-              />
+              {loading && !nationalIndex ? (
+                <ChartSkeleton title="Calibrating Laspeyres & Jevons Civil Aviation Telemetry..." />
+              ) : (
+                <Chart
+                  data={indexChartData}
+                  label1="Laspeyres Index"
+                  label2="Jevons Index"
+                  color1="#38bdf8"
+                  color2="#a855f7"
+                  showAnnotations={true}
+                />
+              )}
             </div>
 
             {/* 3D Flight Radar Showcase Banner */}
@@ -716,8 +992,32 @@ export default function App() {
               </form>
             </div>
 
+            {/* Search Feedback & Skeletons */}
+            {searchError && (
+              <InlineApiError message={searchError} onRetry={() => handleSearch()} />
+            )}
+
+            {searchLoading && (
+              <div style={{ marginTop: "1.5rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "1rem",
+                    color: "var(--text-muted)",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  <div className="spinner-sm" />
+                  <span>Polling civil aviation schedule adapters & scoring Fair Fare thresholds...</span>
+                </div>
+                <TableSkeleton rows={4} cols={4} />
+              </div>
+            )}
+
             {/* Search Results */}
-            {searchResults && (
+            {!searchLoading && searchResults && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                   <div>
