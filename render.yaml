@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: sih26056-airfare-index
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_PATH
+        value: /app/airfare.db

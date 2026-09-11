@@ -1,0 +1,42 @@
+services:
+  # Production all-in-one container (FastAPI + Embedded React SPA on port 8000)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_PATH=/app/airfare.db
+    restart: unless-stopped
+
+  # Development mode: Live-reloading API
+  dev-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_PATH=/app/airfare.db
+    ports:
+      - "8001:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    profiles:
+      - dev
+
+  # Development mode: Live-reloading Vite dev server
+  dev-frontend:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:8001/api/v1
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - dev-api
+    profiles:
+      - dev
